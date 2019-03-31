@@ -3,6 +3,8 @@
 
 #include "stdafx.h"
 #include "Tic Tac Toe.h"
+#include "windowsx.h";
+#include "GameControllsHeader.h"
 
 #define MAX_LOADSTRING 100
 
@@ -57,7 +59,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 }
 
 
-
 //
 //  FUNKCJA: MyRegisterClass()
 //
@@ -109,10 +110,13 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
+   SetGameBoardIndexes(); // Odwołanie podpisujące indeksy "virtualnej" planszy
+   SetPlayersSymbols(Symbol::O, Symbol::X);
+
    return TRUE;
 }
 
-// Funkcja rysująca planszę
+// Funkcja rysująca background planszy
 BOOL GetGameBoardRect(HWND hwnd, RECT * boardRectPointer) 
 {
 	RECT rect;
@@ -132,12 +136,56 @@ BOOL GetGameBoardRect(HWND hwnd, RECT * boardRectPointer)
 	return FALSE;
 }
 
-// Funkcja rysująca linie
+// Funkcja rysująca siatkę na planszy
 void DrawLine(HDC hdc, int x1, int x2, int y1, int y2) 
 {
 	MoveToEx(hdc,x1,y1,NULL);
 	LineTo(hdc,x2,y2);
 }
+
+int GetCellNumber(HWND hwnd, POINT point) 
+{
+	RECT rect;
+
+	if (GetGameBoardRect(hwnd,&rect)) 
+	{
+		if (PtInRect(&rect, point)) 
+		{
+			// Normalizacja
+			point = {point.x - rect.left,point.y - rect.top};
+			int column = point.x / CellSize;
+			int row = point.y / CellSize;
+
+			return column + row * 3;
+		}
+	}
+
+	return -1;
+}
+
+BOOL GetCellRect(HWND hwnd,int index, RECT * cellRect) 
+{
+	RECT boardRect;
+
+	SetRectEmpty(cellRect);
+
+	if (GetGameBoardRect(hwnd, &boardRect)) 
+	{
+		int row = index / 3;
+		int column = index % 3;
+
+		cellRect->left = boardRect.left + column * CellSize + 1;
+		cellRect->right = cellRect->left + CellSize - 1;
+
+		cellRect->top = boardRect.top + row * CellSize + 1;
+		cellRect->bottom = cellRect->top + CellSize - 1;
+
+		return TRUE;
+	}
+
+	return FALSE;
+}
+
 //
 //  FUNKCJA: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
@@ -146,6 +194,8 @@ void DrawLine(HDC hdc, int x1, int x2, int y1, int y2)
 //  WM_COMMAND  - przetwarzaj menu aplikacji
 //  WM_PAINT    - Maluj okno główne
 //  WM_DESTROY  - opublikuj komunikat o wyjściu i wróć
+//	WM_LBUTTONDOWN - obsłuż kliknięcie lewym klawiszem myszki
+//  WM_GETMINMAXINFO - w tym przypadku ogranicz rozmiar okna
 //
 //
 LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -169,6 +219,39 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
         }
         break;
+	case WM_LBUTTONDOWN:
+		{
+			POINT clickedPoint{ GET_X_LPARAM(lParam) ,GET_Y_LPARAM(lParam) };
+			int index = GetCellNumber(hWnd, clickedPoint);
+
+			HDC hdc = GetDC(hWnd);
+
+			if (hdc != NULL)
+			{
+				if (index > -1 && index < 9)
+				{
+					if (CheckIfMoveIsPossible(index)) 
+					{
+						RECT cellRect;
+						if (GetCellRect(hWnd, index, &cellRect))
+						{
+							FillRect(hdc, &cellRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
+						}
+
+						int cpIndex = UpdateGame(index);
+
+						RECT cpCellRect;
+						if (GetCellRect(hWnd, cpIndex, &cpCellRect))
+						{
+							FillRect(hdc, &cpCellRect, (HBRUSH)GetStockObject(GRAY_BRUSH));
+						}
+					}
+				}
+
+				ReleaseDC(hWnd, hdc);
+			}
+		}
+		break;
     case WM_PAINT:
         {
             PAINTSTRUCT ps;
@@ -192,7 +275,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			EndPaint(hWnd, &ps);
         }
         break;
-	// Ograniczenie rozmiaru
 	case WM_GETMINMAXINFO: 
 		{
 			MINMAXINFO * pointMinMax = (MINMAXINFO*) lParam;
