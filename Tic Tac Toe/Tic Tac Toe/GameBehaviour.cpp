@@ -6,31 +6,14 @@
 
 const int FieldSize = 3;
 
-class Field 
-{
-	public: 
-		Symbol fieldSymbol;
-		int index;
-};
-
-class Player 
-{
-	public:
-		Symbol PlayerSymbol;
-};
-
-struct Move
-{
-	int x = 0;
-	int y = 0;
-	int value = (std::numeric_limits<int>::min)();
-};
-
-std::vector<std::vector<Field>> gameBoard (FieldSize,std::vector<Field>(FieldSize));
+std::vector<std::vector<Field>> GameBoard (FieldSize,std::vector<Field>(FieldSize));
+Winner SomeoneWonTheGame = Winner::None;
 Player HumanPlayer;
 Player Computer;
 Move BestMove;
 int RemainingFields;
+bool HumanStarts = true;
+ScoreTable Scores;
 
 void SetGameBoardIndexes() 
 {
@@ -39,8 +22,8 @@ void SetGameBoardIndexes()
 	{
 		for (int j = 0; j < FieldSize; j++)
 		{
-			gameBoard[i][j].index = index;
-			gameBoard[i][j].fieldSymbol = Symbol::empty;
+			GameBoard[i][j].index = index;
+			GameBoard[i][j].fieldSymbol = Symbol::empty;
 			index++;
 		}
 	}
@@ -54,7 +37,7 @@ void SetPlayersSymbols(Symbol chosenSymbol,Symbol computerSymbol)
 	Computer.PlayerSymbol = computerSymbol;
 }
 
-const bool CheckWin(Symbol playerSymbol) 
+const bool CheckIfPlayerWon(Symbol playerSymbol) 
 {
 	for (int i = 0; i < FieldSize;i++) 
 	{
@@ -63,8 +46,8 @@ const bool CheckWin(Symbol playerSymbol)
 
 		for (int j = 0; j < FieldSize; j++) 
 		{
-			row = row && ( gameBoard[i][j].fieldSymbol == playerSymbol );
-			column = column && ( gameBoard[j][i].fieldSymbol == playerSymbol );
+			row = row && ( GameBoard[i][j].fieldSymbol == playerSymbol );
+			column = column && ( GameBoard[j][i].fieldSymbol == playerSymbol );
 		}
 
 		if (row || column) 
@@ -76,19 +59,19 @@ const bool CheckWin(Symbol playerSymbol)
 	bool diagonal = true;
 
 	for (int i = 0; i < FieldSize; i++) {
-		diagonal = diagonal && gameBoard[i][i].fieldSymbol == playerSymbol;
+		diagonal = diagonal && GameBoard[i][i].fieldSymbol == playerSymbol;
 	}
 
 	if (diagonal)
 	{
-		return true;
+		return diagonal;
 	}
 
 	diagonal = true;
 
 	for (int i = 0; i < FieldSize;i++) 
 	{
-		diagonal = diagonal && ( gameBoard[FieldSize - i - 1][i].fieldSymbol == playerSymbol);
+		diagonal = diagonal && ( GameBoard[FieldSize - i - 1][i].fieldSymbol == playerSymbol);
 	}
 
 	return diagonal;
@@ -100,9 +83,9 @@ Field * GetFieldByIndex(int index)
 	{
 		for (int j = 0; j < FieldSize; j++)
 		{
-			if (gameBoard[i][j].index == index)
+			if (GameBoard[i][j].index == index)
 			{
-				return &gameBoard[i][j];
+				return &GameBoard[i][j];
 			}
 		}
 	}
@@ -122,11 +105,11 @@ bool isTie()
 
 int Search(int depth, int alpha, int beta, int scoreGiven, Player searchingPlayer, bool isMinSearch)
 {
-	if (CheckWin(HumanPlayer.PlayerSymbol)) 
+	if (CheckIfPlayerWon(HumanPlayer.PlayerSymbol)) 
 	{ 
 		return 10;
 	}
-	else if (CheckWin(Computer.PlayerSymbol)) 
+	else if (CheckIfPlayerWon(Computer.PlayerSymbol)) 
 	{ 
 		return -10; 
 	}
@@ -141,9 +124,9 @@ int Search(int depth, int alpha, int beta, int scoreGiven, Player searchingPlaye
 	{
 		for (unsigned j = 0; j < FieldSize; j++)
 		{
-            if (CheckIfMoveIsPossible(gameBoard[i][j].index))
+            if (CheckIfMoveIsPossible(GameBoard[i][j].index))
             {
-                gameBoard[i][j].fieldSymbol = searchingPlayer.PlayerSymbol;
+                GameBoard[i][j].fieldSymbol = searchingPlayer.PlayerSymbol;
 				RemainingFields--;
 				
 				if (isMinSearch) 
@@ -157,7 +140,7 @@ int Search(int depth, int alpha, int beta, int scoreGiven, Player searchingPlaye
 					alpha = (std::max)(alpha, score);
 				}
 
-                gameBoard[i][j].fieldSymbol = Symbol::empty;
+                GameBoard[i][j].fieldSymbol = Symbol::empty;
 				RemainingFields++;
 
 				if (isMinSearch) 
@@ -194,9 +177,9 @@ Move MinMaxAlgorithm()
 	{
 		for (unsigned j = 0; j < FieldSize; j++)
 		{
-			if (CheckIfMoveIsPossible(gameBoard[i][j].index))
+			if (CheckIfMoveIsPossible(GameBoard[i][j].index))
 			{
-				gameBoard[i][j].fieldSymbol = Computer.PlayerSymbol;
+				GameBoard[i][j].fieldSymbol = Computer.PlayerSymbol;
 				RemainingFields--;
 
 				int bestPossibleValue = Search(depth, (std::numeric_limits<int>::min)(), (std::numeric_limits<int>::max)(), (std::numeric_limits<int>::min)(),HumanPlayer,false);
@@ -223,7 +206,7 @@ Move MinMaxAlgorithm()
 					}
 				}
 
-				gameBoard[i][j].fieldSymbol = Symbol::empty;
+				GameBoard[i][j].fieldSymbol = Symbol::empty;
 				RemainingFields++;
 			}
 		}
@@ -241,34 +224,85 @@ Move MinMaxAlgorithm()
 	return BestMove;
 }
 
-int UpdateGame(int index) 
+int GetBestComputerMoveFieldIndex() 
+{
+	Move bestMove = MinMaxAlgorithm();
+	GameBoard[bestMove.x][bestMove.y].fieldSymbol = Computer.PlayerSymbol;
+	RemainingFields--;
+	return GameBoard[bestMove.x][bestMove.y].index;
+}
+
+bool IsHumanStartingGame() 
+{
+	return HumanStarts;
+}
+
+bool SetStartingPlayer()
+{
+	return HumanStarts = !HumanStarts;
+}
+
+void SetWinData(Winner winner) 
+{
+	SetStartingPlayer();
+	SomeoneWonTheGame = winner;
+}
+
+ScoreTable GetScores() 
+{
+	return Scores;
+}
+
+int MakeFirstComputerMove() 
+{
+	int index = rand()%9;
+	GetFieldByIndex(index)->fieldSymbol = Computer.PlayerSymbol;
+	RemainingFields--;
+
+	return index;
+}
+
+void MakePlayerMove(int index) 
 {
 	GetFieldByIndex(index)->fieldSymbol = HumanPlayer.PlayerSymbol;
 	RemainingFields--;
+}
 
-	if (CheckWin(HumanPlayer.PlayerSymbol)) 
+std::pair<int,Winner> UpdateGame(int index) 
+{
+	int moveIndex = -1;
+
+	MakePlayerMove(index);
+
+	if (CheckIfPlayerWon(HumanPlayer.PlayerSymbol)) 
 	{
-		exit(1);
+		SetWinData(Winner::Human);
+		Scores.HumanScore++;
 	}
-
-	if (isTie()) {
-		exit(2);
-	}
-
-	Move bestMove = MinMaxAlgorithm();
-
-	gameBoard[bestMove.x][bestMove.y].fieldSymbol = Computer.PlayerSymbol;
-	RemainingFields--;
-
-	return gameBoard[bestMove.x][bestMove.y].index;
-
-	if (CheckWin(Computer.PlayerSymbol))
+	else if (isTie()) 
 	{
-		exit(0);
+		SetWinData(Winner::Tie);
+	}
+	else 
+	{
+		moveIndex = GetBestComputerMoveFieldIndex();
+
+		if (CheckIfPlayerWon(Computer.PlayerSymbol))
+		{
+			SetWinData(Winner::Computer);
+			Scores.ComputerScore++;
+		}
+		else if (isTie())
+		{
+			SetWinData(Winner::Tie);
+		}
 	}
 
-	if (isTie()) {
-		exit(2);
-	}
+	return { moveIndex, SomeoneWonTheGame};
+}
 
+void RestartGame() {
+	SetGameBoardIndexes();
+	SomeoneWonTheGame = Winner::None;
+	BestMove = Move();
 }

@@ -5,6 +5,8 @@
 #include "Tic Tac Toe.h"
 #include "windowsx.h";
 #include "GameControllsHeader.h"
+#include <utility>
+#include <string>
 
 #define MAX_LOADSTRING 100
 
@@ -13,6 +15,11 @@ HINSTANCE hInst;                                // bieżące wystąpienie
 WCHAR szTitle[MAX_LOADSTRING];                  // Tekst paska tytułu
 WCHAR szWindowClass[MAX_LOADSTRING];            // nazwa klasy okna głównego
 const int CellSize = 100;						// Rozmiar komórki
+const int LeftOffset = 16;						// Offset z lewej strony, od krawędzi okna w pikselach
+const int TopOffset = 16;						// Offset od góry, od krawędzi okna w pikselach
+const int RightOffset = 72;						// Offset z prawej strony, od krawędzi okna w pikselach
+const COLORREF backgroundColor = RGB(128, 128, 128); // Kolor dla backgroundów dla tekstów w grze
+const int CellsInRow = 3;						// Ilość pól w linii
 
 // Przekaż dalej deklaracje funkcji dołączone w tym module kodu:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -110,8 +117,23 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
 
-   SetGameBoardIndexes(); // Odwołanie podpisujące indeksy "virtualnej" planszy
-   SetPlayersSymbols(Symbol::O, Symbol::X);
+   // Odwołanie podpisujące indeksy "virtualnej" planszy
+   SetGameBoardIndexes(); 
+
+   // Zwrot po zamknięciu okienka wyboru symbolu
+   const int result = MessageBox(hWnd,
+					   L"Do you want to play as X? \n(Otherwise you will play as O)",
+					   L"Choose your symbol",
+					   MB_ICONINFORMATION | MB_YESNO);
+
+   if (result == IDYES) 
+   {
+	   SetPlayersSymbols(Symbol::X, Symbol::O);
+   }
+   else 
+   {
+	   SetPlayersSymbols(Symbol::O, Symbol::X);
+   }
 
    return TRUE;
 }
@@ -123,11 +145,11 @@ BOOL GetGameBoardRect(HWND hwnd, RECT * boardRectPointer)
 
 	if (GetClientRect(hwnd, &rect))
 	{
-		boardRectPointer->left = (rect.right - CellSize * 3) / 2;
-		boardRectPointer->right = boardRectPointer->left + CellSize * 3;
+		boardRectPointer->left = (rect.right - CellSize * CellsInRow) / 2;
+		boardRectPointer->right = boardRectPointer->left + CellSize * CellsInRow;
 
-		boardRectPointer->top = (rect.bottom - CellSize * 3) / 2;
-		boardRectPointer->bottom = boardRectPointer->top + CellSize * 3;
+		boardRectPointer->top = (rect.bottom - CellSize * CellsInRow) / 2;
+		boardRectPointer->bottom = boardRectPointer->top + CellSize * CellsInRow;
 
 		return TRUE;
 	}
@@ -156,13 +178,14 @@ int GetCellNumber(HWND hwnd, POINT point)
 			int column = point.x / CellSize;
 			int row = point.y / CellSize;
 
-			return column + row * 3;
+			return column + row * CellsInRow;
 		}
 	}
 
 	return -1;
 }
 
+// Funkcja określająca rozmiar wypełnienia pola symbolu
 BOOL GetCellRect(HWND hwnd,int index, RECT * cellRect) 
 {
 	RECT boardRect;
@@ -171,8 +194,8 @@ BOOL GetCellRect(HWND hwnd,int index, RECT * cellRect)
 
 	if (GetGameBoardRect(hwnd, &boardRect)) 
 	{
-		int row = index / 3;
-		int column = index % 3;
+		int row = index / CellsInRow;
+		int column = index % CellsInRow;
 
 		cellRect->left = boardRect.left + column * CellSize + 1;
 		cellRect->right = cellRect->left + CellSize - 1;
@@ -184,6 +207,52 @@ BOOL GetCellRect(HWND hwnd,int index, RECT * cellRect)
 	}
 
 	return FALSE;
+}
+
+// Funkcja restartująca grę tylko wtedy, gdy gra się zakończyła
+void ResetBoardIfGameEnded(HWND hwnd, UINT message, Winner winner)
+{
+	if (winner != Winner::None)
+	{
+		int result = MessageBox(hwnd,
+					winner == Winner::Tie ? L"It's a tie!\nWant to play again?" :
+					winner == Winner::Computer ? L"Computer wins!\nWant to play again?" :
+					L"You win!\nWant to play again?",
+					L"Game Over",
+					MB_ICONINFORMATION | MB_YESNO);
+		if (result == IDYES)
+		{
+			RestartGame();
+			RedrawWindow(hwnd, NULL, NULL, message);
+		}
+		else
+		{
+			exit(0);
+		}
+	}
+}
+
+// Funkcja wyświetlająca wyniki komputera i gracza
+void ShowPlayersScore(HWND hwnd, HDC hdc, RECT windowRect) 
+{
+	ScoreTable scores = GetScores();
+	
+	// Złączenie tekstu i wyników dla konkretnych graczy
+	std::string humanScoreString = "You: " + std::to_string(scores.HumanScore);
+	std::string computerScoreString = std::to_string(scores.ComputerScore)+ " :AI";
+	
+	// Konwersja formatu, tak aby można go było wyświetlić w oknie gry
+	std::wstring humanScoreWString = std::wstring(humanScoreString.begin(), humanScoreString.end());
+	std::wstring computerScoreWString = std::wstring(computerScoreString.begin(), computerScoreString.end());
+
+	if (GetClientRect(hwnd, &windowRect)) 
+	{
+		SetTextColor(hdc, RGB(0, 0, 0));
+		SetBkColor(hdc,backgroundColor);
+
+		TextOut(hdc, windowRect.left + LeftOffset, windowRect.top + TopOffset, humanScoreWString.c_str(), humanScoreWString.length());
+		TextOut(hdc, windowRect.right - RightOffset, windowRect.top + TopOffset, computerScoreWString.c_str(), computerScoreWString.length());
+	}
 }
 
 //
@@ -228,7 +297,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			if (hdc != NULL)
 			{
-				if (index > -1 && index < 9)
+				if (index > -1 && index < pow(CellsInRow,2))
 				{
 					if (CheckIfMoveIsPossible(index)) 
 					{
@@ -238,12 +307,21 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 							FillRect(hdc, &cellRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
 						}
 
-						int cpIndex = UpdateGame(index);
+						std::pair<int, Winner> simplePair = UpdateGame(index);
 
-						RECT cpCellRect;
-						if (GetCellRect(hWnd, cpIndex, &cpCellRect))
+						if (simplePair.first != -1)
 						{
-							FillRect(hdc, &cpCellRect, (HBRUSH)GetStockObject(GRAY_BRUSH));
+							RECT cpCellRect;
+							if (GetCellRect(hWnd, simplePair.first, &cpCellRect))
+							{
+								FillRect(hdc, &cpCellRect, (HBRUSH)GetStockObject(GRAY_BRUSH));
+							}
+							
+							ResetBoardIfGameEnded(hWnd, message, simplePair.second);
+						}
+						else 
+						{
+							ResetBoardIfGameEnded(hWnd, message,simplePair.second);
 						}
 					}
 				}
@@ -257,11 +335,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
 			RECT windowRect;
-
+			
 			if (GetGameBoardRect(hWnd, &windowRect)) 
 			{
 				FillRect(hdc, &windowRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
 			}
+
+			ShowPlayersScore(hWnd, hdc, windowRect);
 
 			for (int i = 0; i < 4; i++) 
 			{
@@ -270,6 +350,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 				//Poziome linie
 				DrawLine(hdc, windowRect.left, windowRect.right, windowRect.top + CellSize * i, windowRect.top + CellSize * i);
+			}
+
+			// Jeśli jego kolej to komputer od razu wybierze i narysuje swój symbol
+			if (!IsHumanStartingGame())
+			{
+				int index = MakeFirstComputerMove();
+
+				RECT cpCellRect;
+				if (GetCellRect(hWnd, index, &cpCellRect))
+				{
+					FillRect(hdc, &cpCellRect, (HBRUSH)GetStockObject(GRAY_BRUSH));
+				}
 			}
 
 			EndPaint(hWnd, &ps);
