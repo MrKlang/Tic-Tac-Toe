@@ -3,6 +3,9 @@
 #include <vector>
 #include <algorithm>
 #include <cmath>
+#include <fstream>
+#include <string>
+#include <regex>
 
 const int FieldSize = 3;
 
@@ -15,6 +18,7 @@ int RemainingFields;
 bool HumanStarts = true;
 ScoreTable Scores;
 
+// Funkcja przypisuj¹ca indeksy i pusty symbol do komórek planszy
 void SetGameBoardIndexes() 
 {
 	int index = 0;
@@ -31,12 +35,14 @@ void SetGameBoardIndexes()
 	RemainingFields = index;
 }
 
+// Funkcja przypisuj¹ca symbole graczom 
 void SetPlayersSymbols(Symbol chosenSymbol,Symbol computerSymbol) 
 {
 	HumanPlayer.PlayerSymbol = chosenSymbol;
 	Computer.PlayerSymbol = computerSymbol;
 }
 
+// Funkcja sprawdzaj¹ca czy dany gracz wygra³ (po kolei rzêdy i kolumny a potem skosy)
 const bool CheckIfPlayerWon(Symbol playerSymbol) 
 {
 	for (int i = 0; i < FieldSize;i++) 
@@ -77,6 +83,7 @@ const bool CheckIfPlayerWon(Symbol playerSymbol)
 	return diagonal;
 }
 
+// Funkcja zwracaj¹ca pole o danym indeksie
 Field * GetFieldByIndex(int index) 
 {
 	for (int i = 0; i < FieldSize; i++)
@@ -91,6 +98,7 @@ Field * GetFieldByIndex(int index)
 	}
 }
 
+// Funkcja sprawdzaj¹ca poprawnoœæ ruchu
 const bool CheckIfMoveIsPossible(int index) 
 {
 	Field * temporaryField = GetFieldByIndex(index);
@@ -98,11 +106,13 @@ const bool CheckIfMoveIsPossible(int index)
 	return temporaryField->fieldSymbol == Symbol::empty;
 }
 
+// Funkcja sprawdzaj¹ca czy nast¹pi³ remis
 bool isTie()
 {
 	return RemainingFields == 0;
 }
 
+// Czêœæ algorytmu MinMax wywo³ywana rekurencyjnie
 int Search(int depth, int alpha, int beta, int scoreGiven, Player searchingPlayer, bool isMinSearch)
 {
 	if (CheckIfPlayerWon(HumanPlayer.PlayerSymbol)) 
@@ -164,6 +174,7 @@ int Search(int depth, int alpha, int beta, int scoreGiven, Player searchingPlaye
     return score;
 }
 
+//Wywo³anie algorytmu MinMax z wykorzystaniem alpha-beta pruning'u. Ustala najlepszy mo¿liwy ruch dla komputera.
 Move MinMaxAlgorithm()
 {
 	int depth = 0;
@@ -224,6 +235,7 @@ Move MinMaxAlgorithm()
 	return BestMove;
 }
 
+// Funkcja wykonuj¹ca ruch komputera i zwracaj¹ca indeks zajmowanego pola
 int GetBestComputerMoveFieldIndex() 
 {
 	Move bestMove = MinMaxAlgorithm();
@@ -232,27 +244,44 @@ int GetBestComputerMoveFieldIndex()
 	return GameBoard[bestMove.x][bestMove.y].index;
 }
 
+// Funkcja zwracaj¹ca informacjê o tym, czy partiê zaczyna cz³owiek
 bool IsHumanStartingGame() 
 {
 	return HumanStarts;
 }
 
+// Funkcja ustalaj¹ca gracza, który rozpocznie nastêpn¹ partiê
 bool SetStartingPlayer()
 {
 	return HumanStarts = !HumanStarts;
 }
 
+// Funkcja ustalaj¹ca dane po zwyciêstwie
 void SetWinData(Winner winner) 
 {
 	SetStartingPlayer();
 	SomeoneWonTheGame = winner;
 }
 
+// Funkcja zwracaj¹ca wyniki gracza i komputera
 ScoreTable GetScores() 
 {
 	return Scores;
 }
 
+// Funkcja zwracaj¹ca symbol gracza
+Symbol GetHumanSymbol() 
+{
+	return HumanPlayer.PlayerSymbol;
+}
+
+// Funkcja zwracaj¹ca symbol komputera
+Symbol GetComputerSymbol()
+{
+	return Computer.PlayerSymbol;
+}
+
+// Funkcja wyonuj¹ca pierwszy ruch komputera (tylko gdy on zaczyna)
 int MakeFirstComputerMove() 
 {
 	int index = rand()%9;
@@ -262,12 +291,63 @@ int MakeFirstComputerMove()
 	return index;
 }
 
+// Funkcja wykonuj¹ca ruch gracza na wirtualnej (nie interfejsowej) planszy
 void MakePlayerMove(int index) 
 {
 	GetFieldByIndex(index)->fieldSymbol = HumanPlayer.PlayerSymbol;
 	RemainingFields--;
 }
 
+// Funkcja dziel¹ca string na podstawie danego regexa
+std::vector<std::string> stringSplit(const std::string & string, std::string regexString = ":") 
+{
+	std::vector<std::string> substrings;
+
+	std::regex regex(regexString);
+
+	std::sregex_token_iterator iter(string.begin(), string.end(), regex, -1);
+	std::sregex_token_iterator end;
+
+	while (iter != end) 
+	{
+		substrings.push_back(*iter);
+		++iter;
+	}
+
+	return substrings;
+}
+
+// Funkcja zapisuj¹ca wynik
+void SaveScoresToFile() 
+{
+	std::fstream plik;
+	plik.open("scores.txt", std::ios::out);
+	if (plik.good() == true)
+	{
+		std::string stringToSave = std::to_string(Scores.HumanScore) + ":" + std::to_string(Scores.ComputerScore);
+		plik.write(stringToSave.c_str(), sizeof(char)*stringToSave.size());
+		plik.close();
+	}
+}
+
+// Funkcja maj¹ca na celu wczytanie i przypisanie zapisanych wyników
+void LoadScoresFromFile()
+{
+	std::fstream plik;
+	plik.open("scores.txt", std::ios::in);
+	if (plik.good() == true)
+	{
+		std::string loadedData;
+		getline(plik, loadedData);
+		plik.close();
+
+		std::vector<std::string> scoresSubstrings = stringSplit(loadedData);
+		Scores.HumanScore = atoi(scoresSubstrings.front().c_str());
+		Scores.ComputerScore = atoi(scoresSubstrings.back().c_str());
+	}
+}
+
+// Funkcja wykonuj¹ca wirtualny ruch gracza i zaraz po tym ruch komputera
 std::pair<int,Winner> UpdateGame(int index) 
 {
 	int moveIndex = -1;
@@ -301,6 +381,7 @@ std::pair<int,Winner> UpdateGame(int index)
 	return { moveIndex, SomeoneWonTheGame};
 }
 
+//Funkcja restartuj¹ca wirtualn¹ grê
 void RestartGame() {
 	SetGameBoardIndexes();
 	SomeoneWonTheGame = Winner::None;

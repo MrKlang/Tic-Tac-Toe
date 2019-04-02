@@ -50,3 +50,7 @@ bool IsHumanStartingGame();
 void RestartGame();
 int MakeFirstComputerMove();
 ScoreTable GetScores();
+Symbol GetHumanSymbol();
+Symbol GetComputerSymbol();
+void SaveScoresToFile();
+void LoadScoresFromFile();

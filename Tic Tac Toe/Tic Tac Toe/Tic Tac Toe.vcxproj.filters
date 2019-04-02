@@ -54,5 +54,29 @@
     <Image Include="Tic Tac Toe.ico">
       <Filter>Pliki zasobów</Filter>
     </Image>
+    <Image Include="..\..\..\..\..\Downloads\tic_tac_toe_cross_fIh_icon.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="..\..\..\..\..\Downloads\tic_tac_toe_circle_Gtu_icon.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="..\Ikony\tic_tac_toe_circle_Gtu_icon.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="..\Ikony\tic_tac_toe_cross_fIh_icon.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="..\Ikony\X-Shape.png">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="icon1.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="..\Ikony\o_small_icon.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
+    <Image Include="..\Ikony\x_small_icon.ico">
+      <Filter>Pliki zasobów</Filter>
+    </Image>
   </ItemGroup>
 </Project>

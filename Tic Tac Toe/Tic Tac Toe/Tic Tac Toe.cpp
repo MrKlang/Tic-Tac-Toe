@@ -20,6 +20,8 @@ const int TopOffset = 16;						// Offset od góry, od krawędzi okna w pikselach
 const int RightOffset = 72;						// Offset z prawej strony, od krawędzi okna w pikselach
 const COLORREF backgroundColor = RGB(128, 128, 128); // Kolor dla backgroundów dla tekstów w grze
 const int CellsInRow = 3;						// Ilość pól w linii
+HICON XIcon;									// Handler ikony X
+HICON OIcon;									// Handler ikony O
 
 // Przekaż dalej deklaracje funkcji dołączone w tym module kodu:
 ATOM                MyRegisterClass(HINSTANCE hInstance);
@@ -64,7 +66,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
     return (int) msg.wParam;
 }
-
 
 //
 //  FUNKCJA: MyRegisterClass()
@@ -113,6 +114,8 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
    {
       return FALSE;
    }
+
+   LoadScoresFromFile();
 
    ShowWindow(hWnd, nCmdShow);
    UpdateWindow(hWnd);
@@ -165,6 +168,7 @@ void DrawLine(HDC hdc, int x1, int x2, int y1, int y2)
 	LineTo(hdc,x2,y2);
 }
 
+// Funkcja zwracająca index pola 
 int GetCellNumber(HWND hwnd, POINT point) 
 {
 	RECT rect;
@@ -227,6 +231,7 @@ void ResetBoardIfGameEnded(HWND hwnd, UINT message, Winner winner)
 		}
 		else
 		{
+			SaveScoresToFile();
 			exit(0);
 		}
 	}
@@ -255,6 +260,77 @@ void ShowPlayersScore(HWND hwnd, HDC hdc, RECT windowRect)
 	}
 }
 
+// Funkcja rysująca symbole (ikony) kółka i krzyżyka
+void DrawSymbolCentered(HWND hwnd,HDC hdc, int index, Symbol symbolToDraw) 
+{
+	RECT cellRect;
+	const int  IconCenteringOffset = 32; // Offset w pikselach
+
+	if (GetCellRect(hwnd, index, &cellRect))
+	{
+		DrawIcon(hdc, cellRect.left+IconCenteringOffset, cellRect.top+IconCenteringOffset, symbolToDraw == Symbol::O ? OIcon : XIcon);
+	}
+}
+
+// Funkcja ograniczająca rozmiar okna gry
+void SetWindowSize(LPARAM lParam) {
+	MINMAXINFO * pointMinMax = (MINMAXINFO*)lParam;
+
+	pointMinMax->ptMinTrackSize.x = CellSize * 5;
+	pointMinMax->ptMinTrackSize.y = pointMinMax->ptMinTrackSize.x;
+
+	pointMinMax->ptMaxTrackSize.x = pointMinMax->ptMinTrackSize.x;
+	pointMinMax->ptMaxTrackSize.y = pointMinMax->ptMinTrackSize.x;
+}
+
+// Funkcja wyonująca działania po kliknięciu lewym przyciskiem myszy
+void HandlePlayerClick(HWND hwnd, HDC hdc, UINT message, int index)
+{
+	if (index > -1 && index < pow(CellsInRow, 2))
+	{
+		if (CheckIfMoveIsPossible(index))
+		{
+			DrawSymbolCentered(hwnd, hdc, index, GetHumanSymbol());
+
+			std::pair<int, Winner> simplePair = UpdateGame(index);
+
+			if (simplePair.first != -1)
+			{
+				DrawSymbolCentered(hwnd, hdc, simplePair.first, GetComputerSymbol());
+
+				ResetBoardIfGameEnded(hwnd, message, simplePair.second);
+			}
+			else
+			{
+				ResetBoardIfGameEnded(hwnd, message, simplePair.second);
+			}
+		}
+	}
+}
+
+//Funkcja rysująca planszę w kolejności: biały background, wyniki, linie siatki planszy
+void DrawGameBoard(HWND hwnd, HDC hdc) 
+{
+	RECT windowRect;
+
+	if (GetGameBoardRect(hwnd, &windowRect))
+	{
+		FillRect(hdc, &windowRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
+	}
+
+	ShowPlayersScore(hwnd, hdc, windowRect);
+
+	for (int i = 0; i < 4; i++)
+	{
+		//Pioneowe linie 
+		DrawLine(hdc, windowRect.left + CellSize * i, windowRect.left + CellSize * i, windowRect.top, windowRect.bottom);
+
+		//Poziome linie
+		DrawLine(hdc, windowRect.left, windowRect.right, windowRect.top + CellSize * i, windowRect.top + CellSize * i);
+	}
+
+}
+
 //
 //  FUNKCJA: WndProc(HWND, UINT, WPARAM, LPARAM)
 //
@@ -271,6 +347,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
     switch (message)
     {
+	case WM_CREATE:
+		XIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_XSYMBOL));
+		OIcon = LoadIcon(hInst, MAKEINTRESOURCE(IDI_OSYMBOL));
+		break;
     case WM_COMMAND:
         {
             int wmId = LOWORD(wParam);
@@ -297,35 +377,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 			if (hdc != NULL)
 			{
-				if (index > -1 && index < pow(CellsInRow,2))
-				{
-					if (CheckIfMoveIsPossible(index)) 
-					{
-						RECT cellRect;
-						if (GetCellRect(hWnd, index, &cellRect))
-						{
-							FillRect(hdc, &cellRect, (HBRUSH)GetStockObject(BLACK_BRUSH));
-						}
-
-						std::pair<int, Winner> simplePair = UpdateGame(index);
-
-						if (simplePair.first != -1)
-						{
-							RECT cpCellRect;
-							if (GetCellRect(hWnd, simplePair.first, &cpCellRect))
-							{
-								FillRect(hdc, &cpCellRect, (HBRUSH)GetStockObject(GRAY_BRUSH));
-							}
-							
-							ResetBoardIfGameEnded(hWnd, message, simplePair.second);
-						}
-						else 
-						{
-							ResetBoardIfGameEnded(hWnd, message,simplePair.second);
-						}
-					}
-				}
-
+				HandlePlayerClick(hWnd, hdc, message, index);
 				ReleaseDC(hWnd, hdc);
 			}
 		}
@@ -334,34 +386,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
-			RECT windowRect;
 			
-			if (GetGameBoardRect(hWnd, &windowRect)) 
-			{
-				FillRect(hdc, &windowRect, (HBRUSH)GetStockObject(WHITE_BRUSH));
-			}
-
-			ShowPlayersScore(hWnd, hdc, windowRect);
-
-			for (int i = 0; i < 4; i++) 
-			{
-				//Pioneowe linie 
-				DrawLine(hdc, windowRect.left + CellSize * i, windowRect.left + CellSize * i, windowRect.top, windowRect.bottom);
-
-				//Poziome linie
-				DrawLine(hdc, windowRect.left, windowRect.right, windowRect.top + CellSize * i, windowRect.top + CellSize * i);
-			}
+			DrawGameBoard(hWnd, hdc);
 
 			// Jeśli jego kolej to komputer od razu wybierze i narysuje swój symbol
 			if (!IsHumanStartingGame())
 			{
 				int index = MakeFirstComputerMove();
-
-				RECT cpCellRect;
-				if (GetCellRect(hWnd, index, &cpCellRect))
-				{
-					FillRect(hdc, &cpCellRect, (HBRUSH)GetStockObject(GRAY_BRUSH));
-				}
+				DrawSymbolCentered(hWnd, hdc, index, GetComputerSymbol());
 			}
 
 			EndPaint(hWnd, &ps);
@@ -369,16 +401,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         break;
 	case WM_GETMINMAXINFO: 
 		{
-			MINMAXINFO * pointMinMax = (MINMAXINFO*) lParam;
-
-			pointMinMax->ptMinTrackSize.x = CellSize * 5;
-			pointMinMax->ptMinTrackSize.y = pointMinMax->ptMinTrackSize.x;
-
-			pointMinMax->ptMaxTrackSize.x = pointMinMax->ptMinTrackSize.x;
-			pointMinMax->ptMaxTrackSize.y = pointMinMax->ptMinTrackSize.x;
+			SetWindowSize(lParam);
 		}
 		break;
     case WM_DESTROY:
+		DestroyIcon(XIcon);
+		DestroyIcon(OIcon);
+		SaveScoresToFile();
         PostQuitMessage(0);
         break;
     default:
