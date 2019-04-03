@@ -167,14 +167,8 @@
     <ResourceCompile Include="Tic Tac Toe.rc" />
   </ItemGroup>
   <ItemGroup>
-    <Image Include="..\..\..\..\..\Downloads\tic_tac_toe_circle_Gtu_icon.ico" />
-    <Image Include="..\..\..\..\..\Downloads\tic_tac_toe_cross_fIh_icon.ico" />
     <Image Include="..\Ikony\o_small_icon.ico" />
-    <Image Include="..\Ikony\tic_tac_toe_circle_Gtu_icon.ico" />
-    <Image Include="..\Ikony\tic_tac_toe_cross_fIh_icon.ico" />
-    <Image Include="..\Ikony\X-Shape.png" />
     <Image Include="..\Ikony\x_small_icon.ico" />
-    <Image Include="icon1.ico" />
     <Image Include="small.ico" />
     <Image Include="Tic Tac Toe.ico" />
   </ItemGroup>
